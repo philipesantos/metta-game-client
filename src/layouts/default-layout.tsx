@@ -1,10 +1,8 @@
 import type React from "react";
-import backgroundImage from "../assets/background.png";
-
 function DefaultLayout({children}: { children: React.ReactNode }) {
     return (
-        <div className="relative h-screen font-sans overflow-hidden bg-cover"
-             style={{ backgroundImage: `url(${backgroundImage})` }}>
+        <div className="forest-background relative min-h-screen text-emerald-50">
+            <div className="forest-overlay" aria-hidden="true" />
             {children}
         </div>
     );
