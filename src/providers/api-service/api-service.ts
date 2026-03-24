@@ -6,4 +6,4 @@ const axiosInstance = axios.create({
     baseURL: apiConfig.restBaseUrl,
 });
 
-export const apiService = new RestService(axiosInstance);
+export const apiService = new RestService(axiosInstance, apiConfig.webSocketBaseUrl);

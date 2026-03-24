@@ -5,7 +5,7 @@ import {RestService} from "../api/rest-service.ts";
 export const useApiService = (): RestService => {
     const context = useContext(ApiServiceContext);
     if (!context) {
-        throw new Error('useApiService must be used within an ApiServiceProvider');
+        throw new Error("useApiService must be used within an ApiServiceProvider");
     }
     return context;
-}
+};

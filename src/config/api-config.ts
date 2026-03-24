@@ -4,6 +4,6 @@ interface ApiConfig {
 }
 
 export const apiConfig: ApiConfig = {
-    webSocketBaseUrl: import.meta.env.VITE_WEBSOCKET_BASE_URL,
-    restBaseUrl: import.meta.env.VITE_REST_BASE_URL,
+    webSocketBaseUrl: import.meta.env.VITE_WEBSOCKET_BASE_URL?.trim() ?? "",
+    restBaseUrl: import.meta.env.VITE_REST_BASE_URL?.trim() ?? "",
 };
