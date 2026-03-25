@@ -1,8 +1,5 @@
 # syntax=docker/dockerfile:1.7
 
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
-
 # Stage 1: Build the React app on the runner's native architecture.
 FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 
@@ -17,7 +14,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve with NGINX
-FROM --platform=$TARGETPLATFORM nginx:1.25-alpine
+FROM nginx:1.25-alpine
 
 RUN rm -rf /etc/nginx/conf.d/default.conf
 
