@@ -10,34 +10,60 @@ permissions:
   contents: read 
   id-token: write
 
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
     - name: Check out the code
       uses: actions/checkout@v4
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Create .env file
+      env:
+        VITE_WEBSOCKET_BASE_URL: ${{ secrets.WEBSOCKET_BASE_URL }}
+        VITE_REST_BASE_URL: ${{ secrets.REST_BASE_URL }}
+      run: |
+        printf 'VITE_WEBSOCKET_BASE_URL=%s\n' "${VITE_WEBSOCKET_BASE_URL:-}" > .env
+        printf 'VITE_REST_BASE_URL=%s\n' "${VITE_REST_BASE_URL:-}" >> .env
+
+    - name: Validate arm64 docker build
+      if: github.event_name == 'pull_request'
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/arm64
+        push: false
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
     - name: Configure AWS credentials
+      if: github.event_name == 'push'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ secrets.AWS_CREDENTIALS_ROLE_TO_ASSUME }}
         aws-region: ${{ secrets.AWS_CREDENTIALS_AWS_REGION }}
 
     - name: Login to Amazon ECR
+      if: github.event_name == 'push'
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Create .env file
-      run: |
-        echo "VITE_WEBSOCKET_BASE_URL=${{ secrets.WEBSOCKET_BASE_URL }}" >> .env
-        echo "VITE_REST_BASE_URL=${{ secrets.REST_BASE_URL }}" >> .env
-
     - name: Build, tag, and push docker image to Amazon ECR
-      env:
-        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
-        docker push --all-tags $REGISTRY/$REPOSITORY
+      if: github.event_name == 'push'
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/arm64
+        push: true
+        tags: |
+          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_REPOSITORY }}:${{ github.sha }}
+          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_REPOSITORY }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

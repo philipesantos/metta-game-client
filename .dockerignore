@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+node_modules
+dist
+dist-ssr
+coverage
+logs
+*.log
+*.local
+*.tsbuildinfo
+.DS_Store
+.vscode
