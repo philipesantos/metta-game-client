@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type FormEvent} from "react";
+import {Fragment, useEffect, useRef, useState, type FormEvent} from "react";
 import useWebSocket from "react-use-websocket";
 import {useApiService} from "../hooks/use-api-service.ts";
 import {
@@ -108,6 +108,12 @@ const KEYWORDS = new Set([
     "subtraction-atom",
 ]);
 const TOKEN_REGEX = /;.*$|"(?:\\.|[^"\\])*"|[()]|=|=[a-zA-Z_][\w-]*|\b\d+(?:\.\d+)?\b|:[a-zA-Z0-9_-]+|[a-zA-Z_][\w-!?]*/gm;
+
+interface PendingCommand {
+    uuid: string;
+    commandType: GameCommandType;
+    text: string;
+}
 
 function highlightMeTTa(code: string) {
     const parts: React.ReactNode[] = [];
@@ -223,6 +229,29 @@ function renderConsoleEntries(consoleEntries: GameConsoleEntry[]) {
     ));
 }
 
+function getResolvedCommandUuids(event: GameServerEvent) {
+    if (event.event === "error") {
+        return event.uuid ? [event.uuid] : [];
+    }
+
+    if (event.event !== "command_result") {
+        return [];
+    }
+
+    const uuids = new Set<string>();
+    if (event.uuid) {
+        uuids.add(event.uuid);
+    }
+
+    for (const query of event.queries) {
+        if (query.uuid) {
+            uuids.add(query.uuid);
+        }
+    }
+
+    return Array.from(uuids);
+}
+
 function HomePage() {
     const apiService = useApiService();
     const [command, setCommand] = useState("");
@@ -235,6 +264,7 @@ function HomePage() {
     const [hasConnected, setHasConnected] = useState(false);
     const [reconnectStopped, setReconnectStopped] = useState(false);
     const [restartState, setRestartState] = useState<"idle" | "disconnecting" | "awaiting_startup">("idle");
+    const [pendingCommands, setPendingCommands] = useState<PendingCommand[]>([]);
     const logRef = useRef<HTMLDivElement | null>(null);
     const idRef = useRef(0);
     const lastProcessedMessageRef = useRef<MessageEvent | null>(null);
@@ -352,6 +382,15 @@ function HomePage() {
 
         lastProcessedMessageRef.current = lastMessage;
         setTransportErrorMessage(null);
+        const resolvedCommandUuids = getResolvedCommandUuids(parsedEvent.event);
+        if (resolvedCommandUuids.length > 0) {
+            const resolvedCommandUuidSet = new Set(resolvedCommandUuids);
+            setPendingCommands((previousState) => previousState.filter((commandEntry) => !resolvedCommandUuidSet.has(commandEntry.uuid)));
+            for (const resolvedCommandUuid of resolvedCommandUuids) {
+                pendingCommandTypesRef.current.delete(resolvedCommandUuid);
+            }
+        }
+
         const displayEvent = getEventForDisplay(parsedEvent.event);
         if (displayEvent.event === "error" && displayEvent.error === "") {
             return;
@@ -377,6 +416,12 @@ function HomePage() {
     const terminalStatusText = getTerminalStatusText(gameState.terminalStatus);
     const isSessionLoading = webSocketUrl !== null && !gameState.startupSeen;
     const isRestarting = restartState !== "idle";
+    const pendingNaturalLanguageCommandUuids = new Set(
+        pendingCommands
+            .filter((pendingCommand) => pendingCommand.commandType === "natural_language")
+            .map((pendingCommand) => pendingCommand.uuid)
+    );
+    const pendingMettaCommands = pendingCommands.filter((pendingCommand) => pendingCommand.commandType === "metta");
     const canSend = connectionState === "connected"
         && gameState.startupSeen
         && gameState.terminalStatus === null
@@ -390,6 +435,14 @@ function HomePage() {
         }
 
         pendingCommandTypesRef.current.set(commandUuid, commandType);
+        setPendingCommands((previousState) => [
+            ...previousState,
+            {
+                uuid: commandUuid,
+                commandType,
+                text: payload.command
+            }
+        ]);
 
         if (commandType === "natural_language") {
             setGameState((previousState) => ({
@@ -400,7 +453,8 @@ function HomePage() {
                         id: createEntryId(),
                         kind: "command",
                         text: payload.command,
-                        commandType
+                        commandType,
+                        requestUuid: commandUuid
                     }
                 ]
             }));
@@ -426,6 +480,7 @@ function HomePage() {
         setGameState(createInitialGameSessionState());
         setHasConnected(false);
         setReconnectStopped(false);
+        setPendingCommands([]);
         setTransportErrorMessage(webSocketUrl ? null : MISSING_WEBSOCKET_URL_MESSAGE);
         pendingCommandTypesRef.current.clear();
 
@@ -476,9 +531,19 @@ function HomePage() {
                             {panelMode === "log" ? (
                                 gameState.messages.length > 0 ? (
                                     gameState.messages.map((message) => (
-                                        <p key={message.id} className={getMessageClassName(message)}>
-                                            {message.kind === "command" ? `> ${message.text}` : message.text}
-                                        </p>
+                                        <Fragment key={message.id}>
+                                            <p className={getMessageClassName(message)}>
+                                                {message.kind === "command" ? `> ${message.text}` : message.text}
+                                            </p>
+                                            {message.kind === "command"
+                                                && message.requestUuid
+                                                && pendingNaturalLanguageCommandUuids.has(message.requestUuid) ? (
+                                                <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-200/60">
+                                                    Processing
+                                                    <span className="loading-dots" aria-hidden="true" />
+                                                </p>
+                                            ) : null}
+                                        </Fragment>
                                     ))
                                 ) : (
                                     <p className="text-emerald-100/50">
@@ -488,6 +553,17 @@ function HomePage() {
                             ) : (
                                 <div className="space-y-3 font-mono text-sm text-emerald-200/80">
                                     {renderConsoleEntries(gameState.consoleEntries)}
+                                    {pendingMettaCommands.map((pendingCommand) => (
+                                        <div key={pendingCommand.uuid} className="space-y-2 text-emerald-200/70">
+                                            <pre className="whitespace-pre-wrap">
+                                                <code className="metta-code">{highlightMeTTa(pendingCommand.text)}</code>
+                                            </pre>
+                                            <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/60">
+                                                Processing
+                                                <span className="loading-dots" aria-hidden="true" />
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>

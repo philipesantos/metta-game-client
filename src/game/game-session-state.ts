@@ -8,6 +8,7 @@ export interface GameLogMessage {
     kind: GameLogMessageKind;
     text: string;
     commandType?: GameCommandType;
+    requestUuid?: string;
 }
 
 export interface GameConsoleEntry {
