@@ -309,11 +309,11 @@ function HomePage() {
             setTransportErrorMessage(null);
         },
         onError: () => {
-            setTransportErrorMessage("Unable to reach the MeTTa Rift server.");
+            setTransportErrorMessage("Unable to reach the MeTTa Game server.");
         },
         onReconnectStop: () => {
             setReconnectStopped(true);
-            setTransportErrorMessage("Unable to reconnect to the MeTTa Rift server.");
+            setTransportErrorMessage("Unable to reconnect to the MeTTa Game server.");
         }
     }, webSocketUrl !== null && restartState !== "disconnecting");
 
