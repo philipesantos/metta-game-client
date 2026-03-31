@@ -66,25 +66,18 @@ describe("applyGameServerEvent", () => {
         expect(nextState.messages).toEqual([
             {
                 id: "entry-2",
-                kind: "command",
-                text: "look around",
-                commandType: "natural_language",
-                requestUuid: "query-1"
-            },
-            {
-                id: "entry-3",
                 kind: "narration",
                 text: "You are in a cabin."
             },
             {
-                id: "entry-5",
+                id: "entry-4",
                 kind: "command",
                 text: "!(synchronize-tick)",
                 commandType: "metta",
                 requestUuid: "query-2"
             },
             {
-                id: "entry-6",
+                id: "entry-5",
                 kind: "narration",
                 text: "Tick synchronized."
             }
@@ -100,7 +93,7 @@ describe("applyGameServerEvent", () => {
                 docIds: ["look-doc"]
             },
             {
-                id: "entry-4",
+                id: "entry-3",
                 code: "!(synchronize-tick)",
                 commandType: "metta",
                 originalInput: "!(synchronize-tick)",
@@ -131,18 +124,63 @@ describe("applyGameServerEvent", () => {
         expect(nextState.messages).toEqual([
             {
                 id: "entry-1",
-                kind: "command",
-                text: "hello",
-                commandType: "natural_language",
-                requestUuid: undefined
-            },
-            {
-                id: "entry-1",
                 kind: "narration",
                 text: "That doesn't seem possible right now."
             }
         ]);
         expect(nextState.consoleEntries).toEqual([]);
+    });
+
+    it("does not echo the input for the first play-log result but does for later ones", () => {
+        let idCounter = 0;
+        const createId = () => {
+            idCounter += 1;
+            return `entry-${idCounter}`;
+        };
+
+        const nextState = applyGameServerEvent(
+            createInitialGameSessionState(),
+            {
+                event: "command_result",
+                queries: [
+                    {
+                        uuid: "query-1",
+                        command_type: "metta",
+                        original_input: "!(inventory)",
+                        matched_metta: "!(inventory)",
+                        responses: ["You are carrying a compass."]
+                    },
+                    {
+                        uuid: "query-2",
+                        command_type: "metta",
+                        original_input: "!(synchronize-tick)",
+                        matched_metta: "!(synchronize-tick)",
+                        responses: ["Tick synchronized."]
+                    }
+                ]
+            },
+            createId
+        );
+
+        expect(nextState.messages).toEqual([
+            {
+                id: "entry-2",
+                kind: "narration",
+                text: "You are carrying a compass."
+            },
+            {
+                id: "entry-4",
+                kind: "command",
+                text: "!(synchronize-tick)",
+                commandType: "metta",
+                requestUuid: "query-2"
+            },
+            {
+                id: "entry-5",
+                kind: "narration",
+                text: "Tick synchronized."
+            }
+        ]);
     });
 
     it("does not duplicate an optimistic command message when the result carries the same uuid", () => {

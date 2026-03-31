@@ -63,8 +63,9 @@ function appendQueryOutput(
     if (query.responses.length > 0) {
         const hasExistingCommandMessage = requestUuid !== undefined
             && messages.some((message) => message.kind === "command" && message.requestUuid === requestUuid);
+        const shouldShowInputMessage = messages.length > 0;
 
-        if (!hasExistingCommandMessage) {
+        if (shouldShowInputMessage && !hasExistingCommandMessage) {
             messages.push({
                 id: createId(),
                 kind: "command",
