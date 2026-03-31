@@ -24,6 +24,7 @@ export interface GameMettaDoc {
     signature: string;
     source_metta: string;
     kind: string;
+    tooltip?: string | null;
 }
 
 export interface StartupEvent {
@@ -115,7 +116,8 @@ function isMettaDoc(value: unknown): value is GameMettaDoc {
         && typeof value.head === "string"
         && typeof value.signature === "string"
         && typeof value.source_metta === "string"
-        && typeof value.kind === "string";
+        && typeof value.kind === "string"
+        && (value.tooltip === undefined || value.tooltip === null || typeof value.tooltip === "string");
 }
 
 export function parseGameServerEvent(rawMessage: string): ParsedGameServerEvent {

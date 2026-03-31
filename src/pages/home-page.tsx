@@ -3,6 +3,7 @@ import {Dialog, DialogBackdrop, DialogPanel} from "@headlessui/react";
 import useWebSocket from "react-use-websocket";
 import {MettaDocInspector} from "../components/metta-doc-inspector.tsx";
 import {highlightMeTTa} from "../components/metta-code.tsx";
+import {TooltipButton} from "../components/tooltip-button.tsx";
 import {useApiService} from "../hooks/use-api-service.ts";
 import {
     applyGameServerEvent,
@@ -19,16 +20,77 @@ import {
     truncateMettaDocViewerHistory
 } from "../game/metta-doc-viewer-state.ts";
 import {
+    getMettaDocHoverTitle,
     openDocsForExecutedQuery,
     type MettaDocsStore
 } from "../game/metta-docs.ts";
 
 const MISSING_WEBSOCKET_URL_MESSAGE = "WebSocket URL is not configured. Set VITE_WEBSOCKET_BASE_URL.";
+const DISPLAY_SETTINGS_STORAGE_KEY = "metta-game-display-settings";
+const GAME_FONT_SIZE_OPTIONS = [
+    {label: "Small", value: 14},
+    {label: "Medium", value: 16},
+    {label: "Large", value: 18}
+] as const;
+const GAME_PANEL_HEIGHT_OPTIONS = [
+    {label: "Small", value: 600},
+    {label: "Medium", value: 700},
+    {label: "Large", value: 800}
+] as const;
+const DEFAULT_GAME_FONT_SIZE = GAME_FONT_SIZE_OPTIONS[0].value;
+const DEFAULT_GAME_PANEL_HEIGHT = GAME_PANEL_HEIGHT_OPTIONS[0].value;
 
 interface PendingCommand {
     uuid: string;
     commandType: GameCommandType;
     text: string;
+}
+
+interface GameDisplaySettings {
+    gameFontSize: number;
+    gamePanelHeight: number;
+}
+
+function normalizeDisplayOption(value: unknown, options: number[], fallback: number) {
+    return typeof value === "number" && options.includes(value) ? value : fallback;
+}
+
+function getInitialDisplaySettings(): GameDisplaySettings {
+    if (typeof window === "undefined") {
+        return {
+            gameFontSize: DEFAULT_GAME_FONT_SIZE,
+            gamePanelHeight: DEFAULT_GAME_PANEL_HEIGHT
+        };
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(DISPLAY_SETTINGS_STORAGE_KEY);
+        if (!rawValue) {
+            return {
+                gameFontSize: DEFAULT_GAME_FONT_SIZE,
+                gamePanelHeight: DEFAULT_GAME_PANEL_HEIGHT
+            };
+        }
+
+        const parsedValue = JSON.parse(rawValue) as Partial<GameDisplaySettings>;
+        return {
+            gameFontSize: normalizeDisplayOption(
+                parsedValue.gameFontSize,
+                GAME_FONT_SIZE_OPTIONS.map((option) => option.value),
+                DEFAULT_GAME_FONT_SIZE
+            ),
+            gamePanelHeight: normalizeDisplayOption(
+                parsedValue.gamePanelHeight,
+                GAME_PANEL_HEIGHT_OPTIONS.map((option) => option.value),
+                DEFAULT_GAME_PANEL_HEIGHT
+            )
+        };
+    } catch {
+        return {
+            gameFontSize: DEFAULT_GAME_FONT_SIZE,
+            gamePanelHeight: DEFAULT_GAME_PANEL_HEIGHT
+        };
+    }
 }
 
 function getMettaViewerEntryTitle(expression: string) {
@@ -96,25 +158,29 @@ function renderConsoleEntries(
 
     return consoleEntries.map((entry) => (
         <div key={entry.id} className="space-y-2">
-            {openDocsForExecutedQuery({
+            {(() => {
+                const resolvedDocs = openDocsForExecutedQuery({
                 matched_metta: entry.code,
                 doc_ids: entry.docIds
-            }, mettaDocs).length > 0 ? (
-                <button
-                    className="metta-query-button"
-                    title={`Open docs for ${entry.code}`}
-                    type="button"
-                    onClick={() => onOpenDocs(entry)}
-                >
+                }, mettaDocs);
+
+                return resolvedDocs.length > 0 ? (
+                    <TooltipButton
+                        className="metta-query-button"
+                        tooltip={getMettaDocHoverTitle(resolvedDocs)}
+                        type="button"
+                        onClick={() => onOpenDocs(entry)}
+                    >
+                        <pre className="whitespace-pre-wrap">
+                            <code className="metta-code">{highlightMeTTa(entry.code)}</code>
+                        </pre>
+                    </TooltipButton>
+                ) : (
                     <pre className="whitespace-pre-wrap" title={entry.originalInput}>
                         <code className="metta-code">{highlightMeTTa(entry.code)}</code>
                     </pre>
-                </button>
-            ) : (
-                <pre className="whitespace-pre-wrap" title={entry.originalInput}>
-                    <code className="metta-code">{highlightMeTTa(entry.code)}</code>
-                </pre>
-            )}
+                );
+            })()}
             {entry.originalResponses.length > 0 ? (
                 <div className="space-y-1 text-sm text-emerald-100/70">
                     {entry.originalResponses.map((response, index) => (
@@ -156,8 +222,10 @@ function HomePage() {
     const [command, setCommand] = useState("");
     const [consoleInput, setConsoleInput] = useState("");
     const [panelMode, setPanelMode] = useState<"log" | "console">("log");
+    const [displaySettings, setDisplaySettings] = useState(getInitialDisplaySettings);
     const [gameState, setGameState] = useState(createInitialGameSessionState);
     const [docViewerState, setDocViewerState] = useState(createInitialMettaDocViewerState);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [transportErrorMessage, setTransportErrorMessage] = useState<string | null>(
         apiService.webSocketBaseUrl ? null : MISSING_WEBSOCKET_URL_MESSAGE
     );
@@ -263,6 +331,14 @@ function HomePage() {
     }, [restartState, webSocketUrl]);
 
     useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        window.localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(displaySettings));
+    }, [displaySettings]);
+
+    useEffect(() => {
         if (logRef.current) {
             logRef.current.scrollTop = logRef.current.scrollHeight;
         }
@@ -326,6 +402,7 @@ function HomePage() {
         && gameState.startupSeen
         && gameState.terminalStatus === null
         && !isRestarting;
+    const gamePanelTextStyle = {fontSize: `${displaySettings.gameFontSize}px`};
 
     const submitCommand = (value: string, commandType: GameCommandType, clearInput: () => void) => {
         const commandUuid = createCommandUuid();
@@ -402,8 +479,12 @@ function HomePage() {
                     </p>
                 </header>
 
-                <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-                    <div className="panel flex h-[600px] flex-col gap-6 rounded-2xl p-6 text-sm text-emerald-50/90 shadow-[0_0_30px_rgba(6,40,23,0.4)]">
+                <div className="flex flex-col gap-6">
+                    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+                        <div
+                            className="panel flex flex-col gap-6 rounded-2xl p-6 text-sm text-emerald-50/90 shadow-[0_0_30px_rgba(6,40,23,0.4)]"
+                            style={{height: `${displaySettings.gamePanelHeight}px`}}
+                        >
                         {shouldRenderConnectionState(visibleConnectionState) || terminalStatusText ? (
                             <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.2em]">
                                 {shouldRenderConnectionState(visibleConnectionState) ? (
@@ -428,6 +509,7 @@ function HomePage() {
                         <div
                             ref={logRef}
                             className="scroll-area flex-1 space-y-4 overflow-y-auto pr-2"
+                            style={gamePanelTextStyle}
                         >
                             {panelMode === "log" ? (
                                 gameState.messages.length > 0 ? (
@@ -452,7 +534,7 @@ function HomePage() {
                                     </p>
                                 )
                             ) : (
-                                <div className="space-y-3 font-mono text-sm text-emerald-200/80">
+                                <div className="space-y-3 font-mono text-sm text-emerald-200/80" style={gamePanelTextStyle}>
                                     {renderConsoleEntries(gameState.consoleEntries, gameState.mettaDocs, openDocsForExecutedQueryEntry)}
                                     {pendingMettaCommands.map((pendingCommand) => (
                                         <div key={pendingCommand.uuid} className="space-y-2 text-emerald-200/70">
@@ -471,15 +553,6 @@ function HomePage() {
 
                         <div className="mt-auto flex flex-col gap-3">
                             <div className="flex flex-wrap items-center justify-between gap-3">
-                                <button
-                                    className="rounded-md border border-emerald-200/20 bg-emerald-950/60 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200/70 transition hover:border-emerald-200/50 hover:text-emerald-100 disabled:cursor-not-allowed disabled:border-emerald-200/10 disabled:text-emerald-200/30"
-                                    disabled={isSessionLoading}
-                                    type="button"
-                                    onClick={handleRestart}
-                                >
-                                    {isRestarting ? "Restarting" : "Restart"}
-                                </button>
-
                                 <div className="flex items-center justify-end gap-2 text-xs uppercase tracking-[0.2em] text-emerald-200/60">
                                     <button
                                         className={panelMode === "log"
@@ -510,7 +583,10 @@ function HomePage() {
 
                             {panelMode === "log" ? (
                                 <form onSubmit={handleSubmit}>
-                                    <div className="relative flex items-center gap-3 rounded-xl border border-emerald-200/10 bg-emerald-900/30 px-4 py-[14px] pr-12 text-sm text-emerald-100/80">
+                                    <div
+                                        className="relative flex items-center gap-3 rounded-xl border border-emerald-200/10 bg-emerald-900/30 px-4 py-[14px] pr-12 text-sm text-emerald-100/80"
+                                        style={gamePanelTextStyle}
+                                    >
                                         <span className="font-mono text-emerald-300">&gt;</span>
                                         <input
                                             className="w-full bg-transparent text-emerald-50 placeholder:text-emerald-100/60 focus:outline-none disabled:cursor-not-allowed disabled:text-emerald-100/40"
@@ -531,7 +607,10 @@ function HomePage() {
                                 </form>
                             ) : (
                                 <form onSubmit={handleConsoleSubmit}>
-                                    <div className="relative rounded-xl border border-emerald-200/10 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-100/80">
+                                    <div
+                                        className="relative rounded-xl border border-emerald-200/10 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-100/80"
+                                        style={gamePanelTextStyle}
+                                    >
                                         <textarea
                                             className="scroll-area invisible-scrollbar min-h-[72px] w-full resize-none bg-transparent pb-10 pr-10 font-mono text-emerald-50 placeholder:text-emerald-200/40 focus:outline-none disabled:cursor-not-allowed disabled:text-emerald-100/40"
                                             disabled={!canSend}
@@ -550,23 +629,119 @@ function HomePage() {
                                 </form>
                             )}
                         </div>
-                    </div>
 
-                    <aside className="flex flex-col gap-3 text-sm text-emerald-100/80">
-                        <div>
-                            <h2 className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Notepad</h2>
-                            <p className="mt-2 text-sm text-emerald-100/70">
-                                Write down clues, names, locations, and anything else you want to remember.
-                            </p>
                         </div>
-                        <textarea
-                            id="forest-notes"
-                            className="scroll-area min-h-[340px] flex-1 resize-none rounded-xl border border-emerald-200/10 bg-emerald-950/60 p-4 text-sm text-emerald-50 placeholder:text-emerald-200/40 focus:outline-none focus:ring-1 focus:ring-emerald-200/40 disabled:cursor-not-allowed disabled:text-emerald-100/40"
+
+                        <aside className="flex flex-col gap-4 text-sm text-emerald-100/80">
+                            <section className="panel flex flex-1 flex-col rounded-2xl p-4">
+                                <div>
+                                    <h2 className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Notepad</h2>
+                                    <p className="mt-2 text-sm text-emerald-100/70">
+                                        Write down clues, names, locations, and anything else you want to remember.
+                                    </p>
+                                </div>
+                                <textarea
+                                    id="forest-notes"
+                                    className="scroll-area mt-4 min-h-[340px] flex-1 resize-none rounded-xl border border-emerald-200/10 bg-emerald-950/60 p-4 text-sm text-emerald-50 placeholder:text-emerald-200/40 focus:outline-none focus:ring-1 focus:ring-emerald-200/40 disabled:cursor-not-allowed disabled:text-emerald-100/40"
+                                    disabled={isSessionLoading}
+                                />
+                            </section>
+                        </aside>
+                    </section>
+
+                    <section className="grid gap-2 sm:grid-cols-3">
+                        <button
+                            className="sidebar-action-button"
                             disabled={isSessionLoading}
-                        />
-                    </aside>
-                </section>
+                            type="button"
+                            onClick={handleRestart}
+                        >
+                            <span className="sidebar-action-label">{isRestarting ? "Starting" : "New Game"}</span>
+                            <span className="sidebar-action-hint">Reset the current session</span>
+                        </button>
+                        <button
+                            className="sidebar-action-button"
+                            disabled={isSessionLoading}
+                            type="button"
+                            onClick={() => setIsSettingsOpen(true)}
+                        >
+                            <span className="sidebar-action-label">Settings</span>
+                            <span className="sidebar-action-hint">Font size and panel height</span>
+                        </button>
+                        <button
+                            className="sidebar-action-button"
+                            disabled
+                            type="button"
+                        >
+                            <span className="sidebar-action-label">Documentation</span>
+                            <span className="sidebar-action-hint">Coming soon</span>
+                        </button>
+                    </section>
+                </div>
             </div>
+
+            <Dialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} className="relative z-50">
+                <DialogBackdrop className="fixed inset-0 bg-black/45" />
+                <div className="fixed inset-0 overflow-y-auto p-4 sm:p-6">
+                    <div className="flex min-h-full items-center justify-center">
+                        <DialogPanel className="panel w-full max-w-md rounded-2xl p-5">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Settings</h2>
+                                    <p className="mt-2 text-sm text-emerald-100/70">
+                                        Adjust the game panel size and reading scale.
+                                    </p>
+                                </div>
+                                <button
+                                    className="rounded-md border border-emerald-200/20 bg-emerald-950/60 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200/70 transition hover:border-emerald-200/50 hover:text-emerald-100"
+                                    type="button"
+                                    onClick={() => setIsSettingsOpen(false)}
+                                >
+                                    Close
+                                </button>
+                            </div>
+
+                            <div className="mt-5 space-y-4">
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-xs uppercase tracking-[0.2em] text-emerald-200/60">Font Size</span>
+                                    <select
+                                        className="rounded-xl border border-emerald-200/10 bg-emerald-950/60 px-3 py-2 text-sm text-emerald-50 focus:outline-none focus:ring-1 focus:ring-emerald-200/40"
+                                        value={displaySettings.gameFontSize}
+                                        onChange={(event) => setDisplaySettings((previousState) => ({
+                                            ...previousState,
+                                            gameFontSize: Number(event.target.value)
+                                        }))}
+                                    >
+                                        {GAME_FONT_SIZE_OPTIONS.map((fontSize) => (
+                                            <option key={fontSize.value} value={fontSize.value}>
+                                                {fontSize.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-xs uppercase tracking-[0.2em] text-emerald-200/60">Panel Height</span>
+                                    <select
+                                        className="rounded-xl border border-emerald-200/10 bg-emerald-950/60 px-3 py-2 text-sm text-emerald-50 focus:outline-none focus:ring-1 focus:ring-emerald-200/40"
+                                        value={displaySettings.gamePanelHeight}
+                                        onChange={(event) => setDisplaySettings((previousState) => ({
+                                            ...previousState,
+                                            gamePanelHeight: Number(event.target.value)
+                                        }))}
+                                    >
+                                        {GAME_PANEL_HEIGHT_OPTIONS.map((panelHeight) => (
+                                            <option key={panelHeight.value} value={panelHeight.value}>
+                                                {panelHeight.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+                        </DialogPanel>
+                    </div>
+                </div>
+            </Dialog>
 
             <Dialog open={hasOpenMettaDocs} onClose={closeDocs} className="relative z-50">
                 <DialogBackdrop className="fixed inset-0 bg-black/55 backdrop-blur-[2px]" />

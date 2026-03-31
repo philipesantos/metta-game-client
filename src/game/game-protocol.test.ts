@@ -119,7 +119,8 @@ describe("parseGameServerEvent", () => {
                     head: "inventory",
                     signature: "(inventory)",
                     source_metta: "(= (inventory) (items player))",
-                    kind: "function"
+                    kind: "function",
+                    tooltip: "Show the player inventory."
                 }
             ]
         }))).toEqual({
@@ -133,7 +134,8 @@ describe("parseGameServerEvent", () => {
                         head: "inventory",
                         signature: "(inventory)",
                         source_metta: "(= (inventory) (items player))",
-                        kind: "function"
+                        kind: "function",
+                        tooltip: "Show the player inventory."
                     }
                 ]
             }

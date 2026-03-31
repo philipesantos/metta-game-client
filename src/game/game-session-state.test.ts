@@ -16,7 +16,8 @@ describe("applyGameServerEvent", () => {
                         head: "inventory",
                         signature: "(inventory)",
                         source_metta: "(= (inventory) (items player))",
-                        kind: "function"
+                        kind: "function",
+                        tooltip: "Show the player inventory."
                     }
                 ]
             },
@@ -27,6 +28,7 @@ describe("applyGameServerEvent", () => {
         expect(nextState.messages).toEqual([]);
         expect(nextState.consoleEntries).toEqual([]);
         expect(nextState.mettaDocs.byId["inventory-doc"]?.head).toBe("inventory");
+        expect(nextState.mettaDocs.byId["inventory-doc"]?.tooltip).toBe("Show the player inventory.");
     });
 
     it("maps command results into the existing play log and code console state", () => {

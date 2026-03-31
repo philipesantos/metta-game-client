@@ -4,6 +4,7 @@ import {
     createMettaDocsStore,
     excludeFirstLineClickableCalls,
     excludeSelfNavigatingClickableCalls,
+    getMettaDocHoverTitle,
     matchesMettaSignature,
     openDocsForExecutedQuery,
     openDocsForNestedExpression,
@@ -23,21 +24,24 @@ const sampleDocs = [
         head: "pickup",
         signature: "(pickup (compass))",
         source_metta: "(= (pickup (compass)) (inventory))",
-        kind: "function"
+        kind: "function",
+        tooltip: "Pick up the compass."
     },
     {
         id: "inventory-doc",
         head: "inventory",
         signature: "(inventory)",
         source_metta: "(= (inventory) (items player))",
-        kind: "function"
+        kind: "function",
+        tooltip: "Show the player inventory."
     },
     {
         id: "compass-directions-doc",
         head: "compass-directions",
         signature: "(compass-directions ($to))",
         source_metta: "(= (compass-directions ($to)) $to)",
-        kind: "function"
+        kind: "function",
+        tooltip: "Describe the compass directions."
     },
     {
         id: "trigger-use-wildcard",
@@ -67,6 +71,7 @@ describe("MeTTa docs helpers", () => {
         const store = createMettaDocsStore([...sampleDocs]);
 
         expect(store.byId["inventory-doc"]?.signature).toBe("(inventory)");
+        expect(store.byId["inventory-doc"]?.tooltip).toBe("Show the player inventory.");
         expect(store.all.map((doc) => doc.id)).toEqual([
             "pickup-compass",
             "inventory-doc",
@@ -127,6 +132,26 @@ describe("MeTTa docs helpers", () => {
             "(trigger (Use oil lantern))"
         ]);
         expect(targets.some((target) => target.expression === "(inventory)")).toBe(false);
+    });
+
+    it("returns a single-doc tooltip, a shared multi-match tooltip, or a generic multi-match hover title", () => {
+        const store = createMettaDocsStore([...sampleDocs]);
+
+        expect(getMettaDocHoverTitle([store.byId["inventory-doc"]])).toBe("Show the player inventory.");
+        expect(getMettaDocHoverTitle([
+            {
+                ...store.byId["trigger-use-wildcard"],
+                tooltip: "Run a trigger."
+            },
+            {
+                ...store.byId["trigger-use-lantern"],
+                tooltip: "Run a trigger."
+            }
+        ])).toBe("Run a trigger.");
+        expect(getMettaDocHoverTitle([
+            store.byId["trigger-use-wildcard"],
+            store.byId["trigger-use-lantern"]
+        ])).toBe("Multiple definitions");
     });
 
     it("uses backend doc_ids exactly for executed query clicks", () => {

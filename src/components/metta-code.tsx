@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {TooltipButton} from "./tooltip-button.tsx";
 
 const KEYWORDS = new Set([
     "define",
@@ -181,15 +182,15 @@ export function renderHighlightedMettaSource(
         }
 
         parts.push(
-            <button
+            <TooltipButton
                 key={range.key}
                 className="metta-inline-action"
-                title={range.title}
+                tooltip={range.title}
                 type="button"
                 onClick={range.onClick}
             >
                 {highlightMeTTa(source.slice(range.start, range.end))}
-            </button>
+            </TooltipButton>
         );
 
         lastIndex = range.end;

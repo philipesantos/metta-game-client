@@ -6,6 +6,7 @@ export interface MettaDoc {
     signature: string;
     source_metta: string;
     kind: string;
+    tooltip?: string | null;
 }
 
 export interface MettaAtomNode {
@@ -313,6 +314,28 @@ export function getMettaDocsByIds(store: MettaDocsStore, ids: string[]) {
         const doc = store.byId[id];
         return doc ? [doc] : [];
     });
+}
+
+export function getMettaDocHoverTitle(docs: MettaDocRecord[]) {
+    if (docs.length === 1) {
+        return docs[0].tooltip ?? undefined;
+    }
+
+    if (docs.length > 1) {
+        const distinctTooltips = new Set(
+            docs
+                .map((doc) => doc.tooltip?.trim())
+                .filter((tooltip): tooltip is string => Boolean(tooltip))
+        );
+
+        if (distinctTooltips.size === 1) {
+            return [...distinctTooltips][0];
+        }
+
+        return "Multiple definitions";
+    }
+
+    return undefined;
 }
 
 export function findMatchingMettaDocs(store: MettaDocsStore, expression: string | MettaNode) {

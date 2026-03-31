@@ -2,6 +2,8 @@ import {
     collectNestedClickableCalls,
     excludeFirstLineClickableCalls,
     excludeSelfNavigatingClickableCalls,
+    getMettaDocHoverTitle,
+    getMettaDocsByIds,
     type MettaDocRecord,
     type MettaDocsStore
 } from "../game/metta-docs.ts";
@@ -35,13 +37,16 @@ function renderDocSource(
             doc.id,
             collectNestedClickableCalls(doc.source_metta, store)
         )
-    ).map((target, index) => ({
-        key: `${doc.id}-${target.start}-${target.end}-${index}`,
-        start: target.start,
-        end: target.end,
-        title: `Open ${target.expression}`,
-        onClick: () => onOpenDocs(target.expression, target.docIds)
-    }));
+    ).map((target, index) => {
+        const matchedDocs = getMettaDocsByIds(store, target.docIds);
+        return {
+            key: `${doc.id}-${target.start}-${target.end}-${index}`,
+            start: target.start,
+            end: target.end,
+            title: getMettaDocHoverTitle(matchedDocs),
+            onClick: () => onOpenDocs(target.expression, target.docIds)
+        };
+    });
 
     return (
         <pre className="whitespace-pre-wrap rounded-xl border border-emerald-200/10 bg-emerald-950/50 p-4 text-sm leading-6 text-emerald-50/90">
@@ -123,6 +128,9 @@ export function MettaDocInspector({
                                 <span>{doc.head}</span>
                             </div>
                             <p className="font-mono text-xs text-amber-100/90">{doc.signature}</p>
+                            {doc.tooltip ? (
+                                <p className="text-sm text-emerald-100/60">{doc.tooltip}</p>
+                            ) : null}
                             {renderDocSource(doc, store, onOpenDocs)}
                         </article>
                     ))}
