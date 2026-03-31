@@ -90,6 +90,38 @@ body {
   color: rgba(233, 209, 176, 0.85);
 }
 
+.metta-inline-action,
+.metta-query-button {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(167, 243, 208, 0.5);
+  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.metta-inline-action:hover,
+.metta-inline-action:focus-visible,
+.metta-query-button:hover,
+.metta-query-button:focus-visible {
+  color: rgba(220, 252, 231, 0.98);
+  border-bottom-color: rgba(220, 252, 231, 0.9);
+  background: rgba(16, 58, 39, 0.55);
+  outline: none;
+}
+
+.metta-query-button {
+  text-align: left;
+}
+
+.metta-query-button pre {
+  margin: 0;
+}
+
 .scroll-area {
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 210, 160, 0.5) rgba(7, 20, 12, 0.6);

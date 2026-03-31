@@ -9,7 +9,16 @@ describe("applyGameServerEvent", () => {
             createInitialGameSessionState(),
             {
                 event: "startup",
-                metta_code: "!(bind! world state)"
+                metta_code: "!(bind! world state)",
+                metta_docs: [
+                    {
+                        id: "inventory-doc",
+                        head: "inventory",
+                        signature: "(inventory)",
+                        source_metta: "(= (inventory) (items player))",
+                        kind: "function"
+                    }
+                ]
             },
             () => "entry-1"
         );
@@ -17,6 +26,7 @@ describe("applyGameServerEvent", () => {
         expect(nextState.startupSeen).toBe(true);
         expect(nextState.messages).toEqual([]);
         expect(nextState.consoleEntries).toEqual([]);
+        expect(nextState.mettaDocs.byId["inventory-doc"]?.head).toBe("inventory");
     });
 
     it("maps command results into the existing play log and code console state", () => {
@@ -35,6 +45,7 @@ describe("applyGameServerEvent", () => {
                         command_type: "natural_language",
                         original_input: "look around",
                         matched_metta: "!look",
+                        doc_ids: ["look-doc"],
                         responses: ["You are in a cabin."],
                         original_responses: ["The room smells of damp wood."]
                     },
@@ -63,14 +74,16 @@ describe("applyGameServerEvent", () => {
                 code: "!look",
                 commandType: "natural_language",
                 originalInput: "look around",
-                originalResponses: ["The room smells of damp wood."]
+                originalResponses: ["The room smells of damp wood."],
+                docIds: ["look-doc"]
             },
             {
                 id: "entry-3",
                 code: "!(synchronize-tick)",
                 commandType: "metta",
                 originalInput: "!(synchronize-tick)",
-                originalResponses: []
+                originalResponses: [],
+                docIds: []
             }
         ]);
     });

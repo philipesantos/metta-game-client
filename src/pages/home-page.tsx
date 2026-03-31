@@ -1,5 +1,8 @@
 import {Fragment, useEffect, useRef, useState, type FormEvent} from "react";
+import {Dialog, DialogBackdrop, DialogPanel} from "@headlessui/react";
 import useWebSocket from "react-use-websocket";
+import {MettaDocInspector} from "../components/metta-doc-inspector.tsx";
+import {highlightMeTTa} from "../components/metta-code.tsx";
 import {useApiService} from "../hooks/use-api-service.ts";
 import {
     applyGameServerEvent,
@@ -14,100 +17,18 @@ import {
     type GameCommandType,
     type GameServerEvent
 } from "../game/game-protocol.ts";
+import {
+    createInitialMettaDocViewerState,
+    openMettaDocViewerEntry,
+    popMettaDocViewerEntry,
+    truncateMettaDocViewerHistory
+} from "../game/metta-doc-viewer-state.ts";
+import {
+    openDocsForExecutedQuery,
+    type MettaDocsStore
+} from "../game/metta-docs.ts";
 
 const MISSING_WEBSOCKET_URL_MESSAGE = "WebSocket URL is not configured. Set VITE_WEBSOCKET_BASE_URL.";
-
-const KEYWORDS = new Set([
-    "define",
-    "if",
-    "let",
-    "lambda",
-    "match",
-    "and",
-    "or",
-    "not",
-    "=",
-    "=alpha",
-    "id",
-    "assertEqual",
-    "assertAlphaEqual",
-    "assertEqualToResult",
-    "assertAlphaEqualToResult",
-    "ErrorType",
-    "Error",
-    "if-error",
-    "return-on-error",
-    "return",
-    "function",
-    "eval",
-    "evalc",
-    "chain",
-    "for-each-in-atom",
-    "cons-atom",
-    "decons-atom",
-    "car-atom",
-    "cdr-atom",
-    "size-atom",
-    "index-atom",
-    "pow-math",
-    "sqrt-math",
-    "abs-math",
-    "log-math",
-    "trunc-math",
-    "ceil-math",
-    "floor-math",
-    "round-math",
-    "sin-math",
-    "asin-math",
-    "cos-math",
-    "acos-math",
-    "tan-math",
-    "atan-math",
-    "isnan-math",
-    "isinf-math",
-    "min-atom",
-    "max-atom",
-    "random-int",
-    "random-float",
-    "collapse-bind",
-    "superpose-bind",
-    "superpose",
-    "collapse",
-    "is-function",
-    "type-cast",
-    "match-types",
-    "first-from-pair",
-    "match-type-or",
-    "filter-atom",
-    "map-atom",
-    "foldl-atom",
-    "format-args",
-    "add-reduct",
-    "add-atom",
-    "get-type",
-    "get-type-space",
-    "get-metatype",
-    "if-equal",
-    "new-space",
-    "new-state",
-    "change-state!",
-    "get-state",
-    "remove-atom",
-    "get-atoms",
-    "match",
-    "quote",
-    "unquote",
-    "noreduce-eq",
-    "unique",
-    "union",
-    "intersection",
-    "subtraction",
-    "unique-atom",
-    "union-atom",
-    "intersection-atom",
-    "subtraction-atom",
-]);
-const TOKEN_REGEX = /;.*$|"(?:\\.|[^"\\])*"|[()]|=|=[a-zA-Z_][\w-]*|\b\d+(?:\.\d+)?\b|:[a-zA-Z0-9_-]+|[a-zA-Z_][\w-!?]*/gm;
 
 interface PendingCommand {
     uuid: string;
@@ -115,48 +36,11 @@ interface PendingCommand {
     text: string;
 }
 
-function highlightMeTTa(code: string) {
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    const matches = code.matchAll(TOKEN_REGEX);
-
-    for (const match of matches) {
-        if (match.index === undefined) continue;
-        const start = match.index;
-        const token = match[0];
-
-        if (start > lastIndex) {
-            parts.push(code.slice(lastIndex, start));
-        }
-
-        let className = "token-identifier";
-        if (token.startsWith(";")) {
-            className = "token-comment";
-        } else if (token.startsWith("\"")) {
-            className = "token-string";
-        } else if (token === "(" || token === ")") {
-            className = "token-paren";
-        } else if (token.startsWith(":")) {
-            className = "token-symbol";
-        } else if (/^\d/.test(token)) {
-            className = "token-number";
-        } else if (KEYWORDS.has(token)) {
-            className = "token-keyword";
-        }
-
-        parts.push(
-            <span key={`${start}-${token}`} className={className}>
-                {token}
-            </span>
-        );
-        lastIndex = start + token.length;
-    }
-
-    if (lastIndex < code.length) {
-        parts.push(code.slice(lastIndex));
-    }
-
-    return parts;
+function getMettaViewerEntryTitle(expression: string) {
+    const normalizedExpression = expression.trim().replace(/\s+/g, " ");
+    return normalizedExpression.length > 28
+        ? `${normalizedExpression.slice(0, 27)}…`
+        : normalizedExpression;
 }
 
 function getMessageClassName(message: GameLogMessage) {
@@ -202,7 +86,11 @@ function getTerminalStatusText(terminalStatus: ReturnType<typeof createInitialGa
     return null;
 }
 
-function renderConsoleEntries(consoleEntries: GameConsoleEntry[]) {
+function renderConsoleEntries(
+    consoleEntries: GameConsoleEntry[],
+    mettaDocs: MettaDocsStore,
+    onOpenDocs: (entry: GameConsoleEntry) => void
+) {
     if (consoleEntries.length === 0) {
         return (
             <p className="text-emerald-200/50">
@@ -213,9 +101,25 @@ function renderConsoleEntries(consoleEntries: GameConsoleEntry[]) {
 
     return consoleEntries.map((entry) => (
         <div key={entry.id} className="space-y-2">
-            <pre className="whitespace-pre-wrap" title={entry.originalInput}>
-                <code className="metta-code">{highlightMeTTa(entry.code)}</code>
-            </pre>
+            {openDocsForExecutedQuery({
+                matched_metta: entry.code,
+                doc_ids: entry.docIds
+            }, mettaDocs).length > 0 ? (
+                <button
+                    className="metta-query-button"
+                    title={`Open docs for ${entry.code}`}
+                    type="button"
+                    onClick={() => onOpenDocs(entry)}
+                >
+                    <pre className="whitespace-pre-wrap" title={entry.originalInput}>
+                        <code className="metta-code">{highlightMeTTa(entry.code)}</code>
+                    </pre>
+                </button>
+            ) : (
+                <pre className="whitespace-pre-wrap" title={entry.originalInput}>
+                    <code className="metta-code">{highlightMeTTa(entry.code)}</code>
+                </pre>
+            )}
             {entry.originalResponses.length > 0 ? (
                 <div className="space-y-1 text-sm text-emerald-100/70">
                     {entry.originalResponses.map((response, index) => (
@@ -258,6 +162,7 @@ function HomePage() {
     const [consoleInput, setConsoleInput] = useState("");
     const [panelMode, setPanelMode] = useState<"log" | "console">("log");
     const [gameState, setGameState] = useState(createInitialGameSessionState);
+    const [docViewerState, setDocViewerState] = useState(createInitialMettaDocViewerState);
     const [transportErrorMessage, setTransportErrorMessage] = useState<string | null>(
         apiService.webSocketBaseUrl ? null : MISSING_WEBSOCKET_URL_MESSAGE
     );
@@ -272,6 +177,41 @@ function HomePage() {
     const webSocketUrl = apiService.webSocketBaseUrl || null;
 
     const createCommandUuid = () => crypto.randomUUID();
+    const hasOpenMettaDocs = docViewerState.activeIndex >= 0;
+
+    const openDocsForExecutedQueryEntry = (entry: GameConsoleEntry) => {
+        const resolvedDocs = openDocsForExecutedQuery({
+            matched_metta: entry.code,
+            doc_ids: entry.docIds
+        }, gameState.mettaDocs);
+        if (resolvedDocs.length === 0) {
+            return;
+        }
+
+        setDocViewerState((previousState) => openMettaDocViewerEntry(previousState, {
+            id: crypto.randomUUID(),
+            title: getMettaViewerEntryTitle(entry.code),
+            expression: entry.code,
+            docIds: resolvedDocs.map((doc) => doc.id)
+        }));
+    };
+
+    const openDocsForNestedExpression = (expression: string, docIds: string[]) => {
+        if (docIds.length === 0) {
+            return;
+        }
+
+        setDocViewerState((previousState) => openMettaDocViewerEntry(previousState, {
+            id: crypto.randomUUID(),
+            title: getMettaViewerEntryTitle(expression),
+            expression,
+            docIds
+        }));
+    };
+
+    const closeDocs = () => {
+        setDocViewerState(createInitialMettaDocViewerState());
+    };
 
     const getEventForDisplay = (event: GameServerEvent): GameServerEvent => {
         if (event.event === "error" && event.uuid) {
@@ -478,6 +418,7 @@ function HomePage() {
         setCommand("");
         setConsoleInput("");
         setGameState(createInitialGameSessionState());
+        setDocViewerState(createInitialMettaDocViewerState());
         setHasConnected(false);
         setReconnectStopped(false);
         setPendingCommands([]);
@@ -552,7 +493,7 @@ function HomePage() {
                                 )
                             ) : (
                                 <div className="space-y-3 font-mono text-sm text-emerald-200/80">
-                                    {renderConsoleEntries(gameState.consoleEntries)}
+                                    {renderConsoleEntries(gameState.consoleEntries, gameState.mettaDocs, openDocsForExecutedQueryEntry)}
                                     {pendingMettaCommands.map((pendingCommand) => (
                                         <div key={pendingCommand.uuid} className="space-y-2 text-emerald-200/70">
                                             <pre className="whitespace-pre-wrap">
@@ -666,6 +607,26 @@ function HomePage() {
                     </aside>
                 </section>
             </div>
+
+            <Dialog open={hasOpenMettaDocs} onClose={closeDocs} className="relative z-50">
+                <DialogBackdrop className="fixed inset-0 bg-black/55 backdrop-blur-[2px]" />
+                <div className="fixed inset-0 overflow-y-auto p-4 sm:p-6">
+                    <div className="flex min-h-full items-center justify-center">
+                        <DialogPanel className="max-h-[85vh] w-full max-w-5xl">
+                            <div>
+                                <MettaDocInspector
+                                    store={gameState.mettaDocs}
+                                    viewerState={docViewerState}
+                                    onBack={() => setDocViewerState((previousState) => popMettaDocViewerEntry(previousState))}
+                                    onSelectHistory={(index) => setDocViewerState((previousState) => truncateMettaDocViewerHistory(previousState, index))}
+                                    onOpenDocs={openDocsForNestedExpression}
+                                    onClose={closeDocs}
+                                />
+                            </div>
+                        </DialogPanel>
+                    </div>
+                </div>
+            </Dialog>
         </main>
     );
 }

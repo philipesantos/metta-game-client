@@ -1,4 +1,5 @@
 import type {GameCommandQuery, GameCommandType, GameServerEvent} from "./game-protocol.ts";
+import {createMettaDocsStore, type MettaDocsStore} from "./metta-docs.ts";
 
 export type GameLogMessageKind = "command" | "narration" | "error";
 export type GameTerminalStatus = "game_won" | "game_over" | null;
@@ -17,6 +18,7 @@ export interface GameConsoleEntry {
     commandType: GameCommandType;
     originalInput: string;
     originalResponses: string[];
+    docIds: string[];
 }
 
 export interface GameSessionState {
@@ -24,6 +26,7 @@ export interface GameSessionState {
     consoleEntries: GameConsoleEntry[];
     startupSeen: boolean;
     terminalStatus: GameTerminalStatus;
+    mettaDocs: MettaDocsStore;
 }
 
 type IdFactory = () => string;
@@ -33,7 +36,8 @@ export function createInitialGameSessionState(): GameSessionState {
         messages: [],
         consoleEntries: [],
         startupSeen: false,
-        terminalStatus: null
+        terminalStatus: null,
+        mettaDocs: createMettaDocsStore([])
     };
 }
 
@@ -50,7 +54,8 @@ function appendQueryOutput(
             code: matchedMetta,
             commandType: query.command_type,
             originalInput: query.original_input,
-            originalResponses: query.original_responses ?? []
+            originalResponses: query.original_responses ?? [],
+            docIds: query.doc_ids ?? []
         });
     }
 
@@ -72,7 +77,8 @@ export function applyGameServerEvent(
         case "startup":
             return {
                 ...state,
-                startupSeen: true
+                startupSeen: true,
+                mettaDocs: createMettaDocsStore(event.metta_docs ?? [])
             };
         case "command_result": {
             const messages = [...state.messages];

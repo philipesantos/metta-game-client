@@ -13,13 +13,23 @@ export interface GameCommandQuery {
     command_type: GameCommandType;
     original_input: string;
     matched_metta: string | null;
+    doc_ids?: string[];
     responses: string[];
     original_responses?: string[];
+}
+
+export interface GameMettaDoc {
+    id: string;
+    head: string;
+    signature: string;
+    source_metta: string;
+    kind: string;
 }
 
 export interface StartupEvent {
     event: "startup";
     metta_code?: string;
+    metta_docs?: GameMettaDoc[];
 }
 
 export interface CommandResultEvent {
@@ -91,8 +101,21 @@ function isCommandQuery(value: unknown): value is GameCommandQuery {
         && (value.uuid === undefined || typeof value.uuid === "string")
         && typeof value.original_input === "string"
         && (typeof value.matched_metta === "string" || value.matched_metta === null)
+        && (value.doc_ids === undefined || isStringArray(value.doc_ids))
         && isStringArray(value.responses)
         && (value.original_responses === undefined || isStringArray(value.original_responses));
+}
+
+function isMettaDoc(value: unknown): value is GameMettaDoc {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    return typeof value.id === "string"
+        && typeof value.head === "string"
+        && typeof value.signature === "string"
+        && typeof value.source_metta === "string"
+        && typeof value.kind === "string";
 }
 
 export function parseGameServerEvent(rawMessage: string): ParsedGameServerEvent {
@@ -123,11 +146,19 @@ export function parseGameServerEvent(rawMessage: string): ParsedGameServerEvent 
                 };
             }
 
+            if (payload.metta_docs !== undefined && (!Array.isArray(payload.metta_docs) || !payload.metta_docs.every(isMettaDoc))) {
+                return {
+                    ok: false,
+                    error: "Received startup event with an invalid metta_docs field."
+                };
+            }
+
             return {
                 ok: true,
                 event: {
                     event: "startup",
-                    metta_code: payload.metta_code
+                    metta_code: payload.metta_code,
+                    metta_docs: payload.metta_docs
                 }
             };
         case "command_result":
