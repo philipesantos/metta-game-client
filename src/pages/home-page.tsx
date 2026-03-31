@@ -11,12 +11,7 @@ import {
     type GameLogMessage
 } from "../game/game-session-state.ts";
 import {getConnectionState, getConnectionStateLabel} from "../game/game-connection-state.ts";
-import {
-    parseGameServerEvent,
-    type CommandResultEvent,
-    type GameCommandType,
-    type GameServerEvent
-} from "../game/game-protocol.ts";
+import {parseGameServerEvent, type GameCommandType, type GameServerEvent} from "../game/game-protocol.ts";
 import {
     createInitialMettaDocViewerState,
     openMettaDocViewerEntry,
@@ -224,42 +219,7 @@ function HomePage() {
             }
         }
 
-        if (event.event !== "command_result") {
-            return event;
-        }
-
-        const shouldSuppressQueryResponses = (uuid?: string) => {
-            if (!uuid) {
-                return false;
-            }
-
-            const commandType = pendingCommandTypesRef.current.get(uuid);
-            if (commandType !== "metta") {
-                return false;
-            }
-
-            return true;
-        };
-
-        const queries = event.queries.map((query) => {
-            if (!shouldSuppressQueryResponses(query.uuid ?? event.uuid)) {
-                return query;
-            }
-
-            return {
-                ...query,
-                responses: []
-            };
-        });
-
-        if (queries.every((query, index) => query === event.queries[index])) {
-            return event;
-        }
-
-        return {
-            ...event,
-            queries
-        } satisfies CommandResultEvent;
+        return event;
     };
 
     const createEntryId = () => {
@@ -443,7 +403,7 @@ function HomePage() {
                 </header>
 
                 <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-                    <div className="panel flex h-[520px] flex-col gap-6 rounded-2xl p-6 text-sm text-emerald-50/90 shadow-[0_0_30px_rgba(6,40,23,0.4)]">
+                    <div className="panel flex h-[600px] flex-col gap-6 rounded-2xl p-6 text-sm text-emerald-50/90 shadow-[0_0_30px_rgba(6,40,23,0.4)]">
                         {shouldRenderConnectionState(visibleConnectionState) || terminalStatusText ? (
                             <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.2em]">
                                 {shouldRenderConnectionState(visibleConnectionState) ? (

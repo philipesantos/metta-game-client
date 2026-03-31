@@ -42,6 +42,7 @@ describe("applyGameServerEvent", () => {
                 event: "command_result",
                 queries: [
                     {
+                        uuid: "query-1",
                         command_type: "natural_language",
                         original_input: "look around",
                         matched_metta: "!look",
@@ -50,12 +51,14 @@ describe("applyGameServerEvent", () => {
                         original_responses: ["The room smells of damp wood."]
                     },
                     {
+                        uuid: "query-2",
                         command_type: "metta",
                         original_input: "!(synchronize-tick)",
                         matched_metta: "!(synchronize-tick)",
-                        responses: []
+                        responses: ["Tick synchronized."]
                     }
-                ]
+                ],
+                uuid: "command-1"
             },
             createId
         );
@@ -63,8 +66,27 @@ describe("applyGameServerEvent", () => {
         expect(nextState.messages).toEqual([
             {
                 id: "entry-2",
+                kind: "command",
+                text: "look around",
+                commandType: "natural_language",
+                requestUuid: "query-1"
+            },
+            {
+                id: "entry-3",
                 kind: "narration",
                 text: "You are in a cabin."
+            },
+            {
+                id: "entry-5",
+                kind: "command",
+                text: "!(synchronize-tick)",
+                commandType: "metta",
+                requestUuid: "query-2"
+            },
+            {
+                id: "entry-6",
+                kind: "narration",
+                text: "Tick synchronized."
             }
         ]);
 
@@ -78,7 +100,7 @@ describe("applyGameServerEvent", () => {
                 docIds: ["look-doc"]
             },
             {
-                id: "entry-3",
+                id: "entry-4",
                 code: "!(synchronize-tick)",
                 commandType: "metta",
                 originalInput: "!(synchronize-tick)",
@@ -109,11 +131,63 @@ describe("applyGameServerEvent", () => {
         expect(nextState.messages).toEqual([
             {
                 id: "entry-1",
+                kind: "command",
+                text: "hello",
+                commandType: "natural_language",
+                requestUuid: undefined
+            },
+            {
+                id: "entry-1",
                 kind: "narration",
                 text: "That doesn't seem possible right now."
             }
         ]);
         expect(nextState.consoleEntries).toEqual([]);
+    });
+
+    it("does not duplicate an optimistic command message when the result carries the same uuid", () => {
+        const nextState = applyGameServerEvent(
+            {
+                ...createInitialGameSessionState(),
+                messages: [
+                    {
+                        id: "entry-1",
+                        kind: "command",
+                        text: "look around",
+                        commandType: "natural_language",
+                        requestUuid: "query-1"
+                    }
+                ]
+            },
+            {
+                event: "command_result",
+                uuid: "query-1",
+                queries: [
+                    {
+                        command_type: "natural_language",
+                        original_input: "look around",
+                        matched_metta: "!look",
+                        responses: ["You are in a cabin."]
+                    }
+                ]
+            },
+            () => "entry-2"
+        );
+
+        expect(nextState.messages).toEqual([
+            {
+                id: "entry-1",
+                kind: "command",
+                text: "look around",
+                commandType: "natural_language",
+                requestUuid: "query-1"
+            },
+            {
+                id: "entry-2",
+                kind: "narration",
+                text: "You are in a cabin."
+            }
+        ]);
     });
 
     it("tracks server error messages and terminal state signals separately", () => {

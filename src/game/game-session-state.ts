@@ -45,6 +45,7 @@ function appendQueryOutput(
     messages: GameLogMessage[],
     consoleEntries: GameConsoleEntry[],
     query: GameCommandQuery,
+    requestUuid: string | undefined,
     createId: IdFactory
 ) {
     const matchedMetta = query.matched_metta?.trim() ?? "";
@@ -57,6 +58,21 @@ function appendQueryOutput(
             originalResponses: query.original_responses ?? [],
             docIds: query.doc_ids ?? []
         });
+    }
+
+    if (query.responses.length > 0) {
+        const hasExistingCommandMessage = requestUuid !== undefined
+            && messages.some((message) => message.kind === "command" && message.requestUuid === requestUuid);
+
+        if (!hasExistingCommandMessage) {
+            messages.push({
+                id: createId(),
+                kind: "command",
+                text: query.original_input,
+                commandType: query.command_type,
+                requestUuid
+            });
+        }
     }
 
     for (const response of query.responses) {
@@ -85,7 +101,7 @@ export function applyGameServerEvent(
             const consoleEntries = [...state.consoleEntries];
 
             for (const query of event.queries) {
-                appendQueryOutput(messages, consoleEntries, query, createId);
+                appendQueryOutput(messages, consoleEntries, query, query.uuid ?? event.uuid, createId);
             }
 
             return {
