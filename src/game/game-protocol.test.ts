@@ -40,6 +40,7 @@ describe("parseGameServerEvent", () => {
                     command_type: "natural_language",
                     original_input: "look around",
                     matched_metta: "!look",
+                    doc_ids: ["look-doc"],
                     responses: ["You are in a cabin."],
                     original_responses: ["The room smells of damp wood."]
                 },
@@ -64,6 +65,7 @@ describe("parseGameServerEvent", () => {
                         command_type: "natural_language",
                         original_input: "look around",
                         matched_metta: "!look",
+                        doc_ids: ["look-doc"],
                         responses: ["You are in a cabin."],
                         original_responses: ["The room smells of damp wood."]
                     },
@@ -110,12 +112,32 @@ describe("parseGameServerEvent", () => {
     it("parses signal-only terminal events", () => {
         expect(parseGameServerEvent(JSON.stringify({
             event: "startup",
-            metta_code: "!(bind! world state)"
+            metta_code: "!(bind! world state)",
+            metta_docs: [
+                {
+                    id: "inventory-doc",
+                    head: "inventory",
+                    signature: "(inventory)",
+                    source_metta: "(= (inventory) (items player))",
+                    kind: "function",
+                    tooltip: "Show the player inventory."
+                }
+            ]
         }))).toEqual({
             ok: true,
             event: {
                 event: "startup",
-                metta_code: "!(bind! world state)"
+                metta_code: "!(bind! world state)",
+                metta_docs: [
+                    {
+                        id: "inventory-doc",
+                        head: "inventory",
+                        signature: "(inventory)",
+                        source_metta: "(= (inventory) (items player))",
+                        kind: "function",
+                        tooltip: "Show the player inventory."
+                    }
+                ]
             }
         });
 
@@ -155,6 +177,14 @@ describe("parseGameServerEvent", () => {
         }))).toEqual({
             ok: false,
             error: "Received startup event with an invalid metta_code field."
+        });
+
+        expect(parseGameServerEvent(JSON.stringify({
+            event: "startup",
+            metta_docs: [{id: "bad"}]
+        }))).toEqual({
+            ok: false,
+            error: "Received startup event with an invalid metta_docs field."
         });
 
         expect(parseGameServerEvent(JSON.stringify({
@@ -215,6 +245,22 @@ describe("parseGameServerEvent", () => {
                     matched_metta: "!look",
                     responses: ["You are in a cabin."],
                     original_responses: [1]
+                }
+            ]
+        }))).toEqual({
+            ok: false,
+            error: "Received command_result event with an invalid queries array."
+        });
+
+        expect(parseGameServerEvent(JSON.stringify({
+            event: "command_result",
+            queries: [
+                {
+                    command_type: "natural_language",
+                    original_input: "look around",
+                    matched_metta: "!look",
+                    doc_ids: [1],
+                    responses: ["You are in a cabin."]
                 }
             ]
         }))).toEqual({

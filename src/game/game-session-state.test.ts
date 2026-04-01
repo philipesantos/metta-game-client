@@ -9,7 +9,17 @@ describe("applyGameServerEvent", () => {
             createInitialGameSessionState(),
             {
                 event: "startup",
-                metta_code: "!(bind! world state)"
+                metta_code: "!(bind! world state)",
+                metta_docs: [
+                    {
+                        id: "inventory-doc",
+                        head: "inventory",
+                        signature: "(inventory)",
+                        source_metta: "(= (inventory) (items player))",
+                        kind: "function",
+                        tooltip: "Show the player inventory."
+                    }
+                ]
             },
             () => "entry-1"
         );
@@ -17,6 +27,8 @@ describe("applyGameServerEvent", () => {
         expect(nextState.startupSeen).toBe(true);
         expect(nextState.messages).toEqual([]);
         expect(nextState.consoleEntries).toEqual([]);
+        expect(nextState.mettaDocs.byId["inventory-doc"]?.head).toBe("inventory");
+        expect(nextState.mettaDocs.byId["inventory-doc"]?.tooltip).toBe("Show the player inventory.");
     });
 
     it("maps command results into the existing play log and code console state", () => {
@@ -32,19 +44,23 @@ describe("applyGameServerEvent", () => {
                 event: "command_result",
                 queries: [
                     {
+                        uuid: "query-1",
                         command_type: "natural_language",
                         original_input: "look around",
                         matched_metta: "!look",
+                        doc_ids: ["look-doc"],
                         responses: ["You are in a cabin."],
                         original_responses: ["The room smells of damp wood."]
                     },
                     {
+                        uuid: "query-2",
                         command_type: "metta",
                         original_input: "!(synchronize-tick)",
                         matched_metta: "!(synchronize-tick)",
-                        responses: []
+                        responses: ["Tick synchronized."]
                     }
-                ]
+                ],
+                uuid: "command-1"
             },
             createId
         );
@@ -54,6 +70,18 @@ describe("applyGameServerEvent", () => {
                 id: "entry-2",
                 kind: "narration",
                 text: "You are in a cabin."
+            },
+            {
+                id: "entry-4",
+                kind: "command",
+                text: "!(synchronize-tick)",
+                commandType: "metta",
+                requestUuid: "query-2"
+            },
+            {
+                id: "entry-5",
+                kind: "narration",
+                text: "Tick synchronized."
             }
         ]);
 
@@ -63,14 +91,16 @@ describe("applyGameServerEvent", () => {
                 code: "!look",
                 commandType: "natural_language",
                 originalInput: "look around",
-                originalResponses: ["The room smells of damp wood."]
+                originalResponses: ["The room smells of damp wood."],
+                docIds: ["look-doc"]
             },
             {
                 id: "entry-3",
                 code: "!(synchronize-tick)",
                 commandType: "metta",
                 originalInput: "!(synchronize-tick)",
-                originalResponses: []
+                originalResponses: [],
+                docIds: []
             }
         ]);
     });
@@ -101,6 +131,103 @@ describe("applyGameServerEvent", () => {
             }
         ]);
         expect(nextState.consoleEntries).toEqual([]);
+    });
+
+    it("does not echo the input for the first play-log result but does for later ones", () => {
+        let idCounter = 0;
+        const createId = () => {
+            idCounter += 1;
+            return `entry-${idCounter}`;
+        };
+
+        const nextState = applyGameServerEvent(
+            createInitialGameSessionState(),
+            {
+                event: "command_result",
+                queries: [
+                    {
+                        uuid: "query-1",
+                        command_type: "metta",
+                        original_input: "!(inventory)",
+                        matched_metta: "!(inventory)",
+                        responses: ["You are carrying a compass."]
+                    },
+                    {
+                        uuid: "query-2",
+                        command_type: "metta",
+                        original_input: "!(synchronize-tick)",
+                        matched_metta: "!(synchronize-tick)",
+                        responses: ["Tick synchronized."]
+                    }
+                ]
+            },
+            createId
+        );
+
+        expect(nextState.messages).toEqual([
+            {
+                id: "entry-2",
+                kind: "narration",
+                text: "You are carrying a compass."
+            },
+            {
+                id: "entry-4",
+                kind: "command",
+                text: "!(synchronize-tick)",
+                commandType: "metta",
+                requestUuid: "query-2"
+            },
+            {
+                id: "entry-5",
+                kind: "narration",
+                text: "Tick synchronized."
+            }
+        ]);
+    });
+
+    it("does not duplicate an optimistic command message when the result carries the same uuid", () => {
+        const nextState = applyGameServerEvent(
+            {
+                ...createInitialGameSessionState(),
+                messages: [
+                    {
+                        id: "entry-1",
+                        kind: "command",
+                        text: "look around",
+                        commandType: "natural_language",
+                        requestUuid: "query-1"
+                    }
+                ]
+            },
+            {
+                event: "command_result",
+                uuid: "query-1",
+                queries: [
+                    {
+                        command_type: "natural_language",
+                        original_input: "look around",
+                        matched_metta: "!look",
+                        responses: ["You are in a cabin."]
+                    }
+                ]
+            },
+            () => "entry-2"
+        );
+
+        expect(nextState.messages).toEqual([
+            {
+                id: "entry-1",
+                kind: "command",
+                text: "look around",
+                commandType: "natural_language",
+                requestUuid: "query-1"
+            },
+            {
+                id: "entry-2",
+                kind: "narration",
+                text: "You are in a cabin."
+            }
+        ]);
     });
 
     it("tracks server error messages and terminal state signals separately", () => {

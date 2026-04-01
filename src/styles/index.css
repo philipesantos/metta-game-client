@@ -90,6 +90,108 @@ body {
   color: rgba(233, 209, 176, 0.85);
 }
 
+.metta-inline-action,
+.metta-query-button {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(167, 243, 208, 0.5);
+  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.metta-inline-action:hover,
+.metta-inline-action:focus-visible,
+.metta-query-button:hover,
+.metta-query-button:focus-visible {
+  color: rgba(220, 252, 231, 0.98);
+  border-bottom-color: rgba(220, 252, 231, 0.9);
+  background: rgba(16, 58, 39, 0.55);
+  outline: none;
+}
+
+.metta-query-button {
+  text-align: left;
+}
+
+.metta-query-button pre {
+  margin: 0;
+}
+
+.metta-tooltip {
+  position: fixed;
+  z-index: 80;
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(126, 190, 150, 0.18);
+  border-radius: 0.7rem;
+  background: rgba(7, 20, 12, 0.96);
+  box-shadow: 0 14px 32px rgba(3, 12, 8, 0.34);
+  color: rgba(220, 252, 231, 0.92);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.sidebar-action-button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  border: 1px solid rgba(126, 190, 150, 0.14);
+  border-radius: 1rem;
+  background: rgba(10, 24, 17, 0.86);
+  padding: 0.9rem 1rem;
+  text-align: left;
+  color: rgba(220, 252, 231, 0.92);
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.sidebar-action-button:hover,
+.sidebar-action-button:focus-visible {
+  border-color: rgba(167, 243, 208, 0.34);
+  background: rgba(13, 31, 22, 0.92);
+  box-shadow: 0 12px 28px rgba(3, 12, 8, 0.24);
+  outline: none;
+}
+
+.sidebar-action-button:disabled {
+  border-color: rgba(126, 190, 150, 0.08);
+  background: rgba(10, 24, 17, 0.64);
+  color: rgba(167, 243, 208, 0.38);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.sidebar-action-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.sidebar-action-hint {
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(167, 243, 208, 0.62);
+}
+
+.sidebar-action-button:disabled .sidebar-action-hint {
+  color: rgba(167, 243, 208, 0.28);
+}
+
 .scroll-area {
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 210, 160, 0.5) rgba(7, 20, 12, 0.6);
