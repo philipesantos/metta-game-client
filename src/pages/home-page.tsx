@@ -1,6 +1,7 @@
 import {Fragment, useEffect, useRef, useState, type FormEvent} from "react";
 import {Dialog, DialogBackdrop, DialogPanel} from "@headlessui/react";
 import useWebSocket from "react-use-websocket";
+import {GameDocumentationDialog} from "../components/game-documentation-dialog.tsx";
 import {MettaDocInspector} from "../components/metta-doc-inspector.tsx";
 import {highlightMeTTa} from "../components/metta-code.tsx";
 import {TooltipButton} from "../components/tooltip-button.tsx";
@@ -225,6 +226,7 @@ function HomePage() {
     const [displaySettings, setDisplaySettings] = useState(getInitialDisplaySettings);
     const [gameState, setGameState] = useState(createInitialGameSessionState);
     const [docViewerState, setDocViewerState] = useState(createInitialMettaDocViewerState);
+    const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [transportErrorMessage, setTransportErrorMessage] = useState<string | null>(
         apiService.webSocketBaseUrl ? null : MISSING_WEBSOCKET_URL_MESSAGE
@@ -670,11 +672,11 @@ function HomePage() {
                         </button>
                         <button
                             className="sidebar-action-button"
-                            disabled
                             type="button"
+                            onClick={() => setIsDocumentationOpen(true)}
                         >
                             <span className="sidebar-action-label">Documentation</span>
-                            <span className="sidebar-action-hint">Coming soon</span>
+                            <span className="sidebar-action-hint">Player, developer, and reasoning guides</span>
                         </button>
                     </section>
                 </div>
@@ -762,6 +764,8 @@ function HomePage() {
                     </div>
                 </div>
             </Dialog>
+
+            <GameDocumentationDialog open={isDocumentationOpen} onClose={() => setIsDocumentationOpen(false)} />
         </main>
     );
 }
