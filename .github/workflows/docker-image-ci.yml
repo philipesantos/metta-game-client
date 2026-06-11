@@ -5,6 +5,7 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 permissions:
   contents: read 
@@ -44,19 +45,19 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Configure AWS credentials
-      if: github.event_name == 'push'
+      if: github.event_name != 'pull_request'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ secrets.AWS_CREDENTIALS_ROLE_TO_ASSUME }}
         aws-region: ${{ secrets.AWS_CREDENTIALS_AWS_REGION }}
 
     - name: Login to Amazon ECR
-      if: github.event_name == 'push'
+      if: github.event_name != 'pull_request'
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build, tag, and push docker image to Amazon ECR
-      if: github.event_name == 'push'
+      if: github.event_name != 'pull_request'
       uses: docker/build-push-action@v6
       with:
         context: .
