@@ -13,7 +13,7 @@ export interface GameDocumentationBlock {
 }
 
 export interface GameDocumentationSection {
-    id: "user-guide" | "technical-guide";
+    id: "user-guide" | "technical-guide" | "educational-material";
     label: string;
     title: string;
     summary: string;
@@ -271,6 +271,261 @@ export const gameDocumentationSections: GameDocumentationSection[] = [
                 items: [
                     "This is why the Code panel doubles as a learning surface for MeTTa, not just a debugging console.",
                     "The docs inspector is most useful when comparing a natural-language action to the MeTTa that actually executed."
+                ]
+            }
+        ]
+    },
+    {
+        id: "educational-material",
+        label: "Tutorials",
+        title: "Tutorials",
+        summary: "Learn MeTTa and Hyperon by taking apart the running game. Every query below can be executed in the Code panel.",
+        blocks: [
+            {
+                title: "Before You Start",
+                body: [
+                    "These tutorials teach MeTTa by example, using the real rules of this game. Nothing here is simplified for illustration, and every query can be run against the live world.",
+                    "Switch to the Code panel and keep it open. That panel is both the console you will type into and the place where executed MeTTa becomes clickable."
+                ],
+                items: [
+                    "You do not need prior MeTTa experience.",
+                    "Direct MeTTa commands do not advance the game clock, so you can inspect state freely without moving the world."
+                ]
+            },
+            {
+                title: "1. MeTTa In Five Minutes",
+                body: [
+                    "MeTTa has one data structure: the atom. An atom is a symbol, or a parenthesized list of atoms. `(At compass satchel)` is one atom containing three, and it has no built-in meaning — meaning comes from the rules written about it.",
+                    "Atoms live in a knowledge graph called the atomspace. This game's is `&self`. At startup the server writes the entire world into it, and everything afterwards is a query against it or a change to it.",
+                    "An atom starting with `$` is a variable. `match` searches for a shape and evaluates a template for each hit. `=` defines a rewrite rule, and every matching rule applies — the game depends on that. `!` marks an expression for evaluation."
+                ],
+                codeSamples: [
+                    {
+                        label: "The four forms you will keep seeing",
+                        language: "metta",
+                        content: [
+                            "; search the atomspace",
+                            "(match &self (State (At $what player)) $what)",
+                            "",
+                            "; branch on a result; Empty means no match",
+                            "(case (match &self (RouteBlock $from $to $reason) $reason) (",
+                            "    (Empty  ...nothing blocks the way...)",
+                            "    ($reason ...answer with the reason...)",
+                            "))",
+                            "",
+                            "; sequence steps; () bindings run for effect",
+                            "(let* (($tick (match &self (State (Tick $t)) $t))",
+                            "       (() (remove-atom &self (State (Tick $tick)))))",
+                            "    Empty",
+                            ")",
+                            "",
+                            "; gather all results of a multi-result expression",
+                            "(collapse (match &self (State (At $what player)) $what))"
+                        ].join("\n")
+                    }
+                ]
+            },
+            {
+                title: "2. Watch A Command Compile",
+                orderedItems: [
+                    "In the Play panel, type `what am I carrying`.",
+                    "Switch to the Code panel. You will see `!(inventory)` followed by `!(synchronize-tick)`. You wrote English; the server chose MeTTa by embedding your sentence and comparing it against every action currently possible.",
+                    "Click the highlighted `inventory`. The inspector opens the real rule, exactly as the server generated it.",
+                    "Read it from the middle outward: `(State (At $what player))` finds everything located on the player. There is no inventory list anywhere — inventory is a query over memory.",
+                    "Follow the nested clickable calls deeper. The inspector keeps a breadcrumb trail so you can walk back up."
+                ]
+            },
+            {
+                title: "3. Representing A World As Knowledge",
+                body: [
+                    "One relation does most of the work. `At` expresses being at a location, being inside a container, and being carried — carrying is just being located at the player.",
+                    "Because containment nests arbitrarily, `location-path` walks the chain recursively until it reaches something typed `Location`. That single rule is why picking up a compass inside a satchel on the ground works at all."
+                ],
+                codeSamples: [
+                    {
+                        label: "Containment, and the rule that walks it",
+                        language: "metta",
+                        content: [
+                            "(State (At player glade))",
+                            "(State (At satchel glade))",
+                            "(State (At compass satchel))",
+                            "",
+                            "(= (location-path ($what))",
+                            "    (let $where (match &self (State (At $what $where)) $where)",
+                            "        (case (get-type $where) (",
+                            "            (Location (Cons $where (Nil)))",
+                            "            ($_ (Cons $where (location-path ($where))))",
+                            "        ))",
+                            "    )",
+                            ")"
+                        ].join("\n")
+                    }
+                ],
+                items: [
+                    "Facts without `State` are the world's definition and never change: `(Item compass)`, `(ItemName compass \"Compass\")`.",
+                    "Facts inside `State` are the world's current condition and are rewritten constantly.",
+                    "The rules themselves are atoms in the same atomspace as the facts. That is why this documentation inspector can exist at all."
+                ]
+            },
+            {
+                title: "4. Reasoning: How Movement Decides",
+                body: [
+                    "Reasoning here means deciding what is possible given current state. `move-towards` binds where you are, asks whether a route exists, asks whether it is blocked, and only then fires the move.",
+                    "Notice that the rule never asks whether you have the compass. It asks whether a block exists. The compass module removes those blocks on pickup. The movement rule and the compass puzzle know nothing about each other — they meet through shared state."
+                ],
+                codeSamples: [
+                    {
+                        label: "The whole movement decision",
+                        language: "metta",
+                        content: [
+                            "(= (move-towards ($direction))",
+                            "    (match &self (State (At player $from))",
+                            "        (case (match &self (Route $from $direction $to) $to)",
+                            "        (",
+                            "            (Empty (Response 100 \"You cannot go that way.\"))",
+                            "            ($to (case (match &self (RouteBlock $from $to $reason) $reason)",
+                            "            (",
+                            "                (Empty (trigger (Move $from $to)))",
+                            "                ($reason (Response 100 $reason))",
+                            "            )))",
+                            "        ))",
+                            "    )",
+                            ")"
+                        ].join("\n")
+                    }
+                ],
+                items: [
+                    "`(trigger (Move $from $to))` does not perform the move. It asks the world what a move means, and every rule with a matching head answers.",
+                    "Update location, mark the clock stale, print the description, arm the cave threat, resolve a pending death — all separate rules, all firing.",
+                    "Adding a consequence to movement means adding a rule, never editing one. That is how the cave adds mortal danger without the movement rule ever mentioning bears."
+                ]
+            },
+            {
+                title: "5. Memory: Change Is Atom Rewriting",
+                body: [
+                    "There is no save file, no state object, no dictionary of variables. Memory is the set of `State` atoms, and every change is an `add-atom` or a `remove-atom`.",
+                    "Run the query below, pick up the compass in the Play panel, then run it again. One atom was removed and one was added. That is the entire mechanism, and it is the same for every change in the game."
+                ],
+                codeSamples: [
+                    {
+                        label: "Watch memory change",
+                        language: "metta",
+                        content: "!(match &self (State (At compass $where)) $where)"
+                    },
+                    {
+                        label: "The complete effect of picking something up",
+                        language: "metta",
+                        content: [
+                            "(let* (($current_tick (match &self (State (Tick $tick)) $tick))",
+                            "    ( ()  (add-atom &self (Log $current_tick (PickUp compass $where))))",
+                            "    ( ()  (match &self (State (At compass $where_match))",
+                            "        (remove-atom &self (State (At compass $where_match)))))",
+                            "    ( ()  (add-atom &self (State (At compass player)))))",
+                            "    Empty",
+                            ")"
+                        ].join("\n")
+                    }
+                ],
+                items: [
+                    "`State` is what is true now, and is overwritten.",
+                    "`Log` is what happened and when, accumulates, and is never erased. `move-to` consults it — you can only travel by name to somewhere you have been.",
+                    "`Stale` marks that the clock owes an increment.",
+                    "Every puzzle is memory, not code. `(statues-solved)` is a query over placed runes, not a flag."
+                ]
+            },
+            {
+                title: "6. Time And Deferred Consequence",
+                body: [
+                    "Some things should not resolve instantly. A bear in the dark should create a moment of decision — and a moment requires that the world can say something is pending, then react to what you do next.",
+                    "Actions that consume time add `(Stale Tick)`. After every natural-language command the runtime issues `!(synchronize-tick)`, which advances the clock only if a stale marker exists. Your action happens, then the world settles."
+                ],
+                orderedItems: [
+                    "In the lit cave, using the lantern adds `(State (At bear cave))` and `(State (BearThreatPending player))`. Nothing has attacked you — a fact has been asserted about the situation.",
+                    "Two rules are now waiting, and your next action decides which matches.",
+                    "If you move: the threat atom is removed and `(State (GameOver ...))` is added. You die.",
+                    "If you stay still: the threat atom is removed and the bear is removed. You live.",
+                    "Both rules begin by checking the same atom and both consume it. What differs is what replaces it."
+                ],
+                items: [
+                    "There is no timer, no scheduler, no event queue, no state machine. The danger is one atom, and two rules disagree about what it means.",
+                    "`stay still` outside the cave hits the fallback branch and simply prints \"You hold still for a moment.\" Same verb, different meaning, decided by state.",
+                    "Run `!(match &self (State (Tick $t)) $t)`, move once, run it again — it advanced. Run a direct MeTTa command and check again — it did not."
+                ]
+            },
+            {
+                title: "7. Procedural Generation As Fact Placement",
+                body: [
+                    "Two things are randomized per session: which three of six containers hide the runes, and whether the cave yields the propeller or the battery.",
+                    "The randomness lands in exactly one place — which `(State (At ...))` atoms get asserted. The rules governing runes are identical every run. What varies is a fact, not a behaviour. The rules do not know they are in a randomized world; they query state, and state happens to differ."
+                ],
+                codeSamples: [
+                    {
+                        label: "Prove it — find this run's hiding place",
+                        language: "metta",
+                        content: "!(match &self (State (At epsilon_rune $where)) $where)"
+                    }
+                ]
+            },
+            {
+                title: "8. Exercises",
+                body: [
+                    "Run these in the Code panel. Each one states what you should observe."
+                ],
+                codeSamples: [
+                    {
+                        label: "Read your own location",
+                        language: "metta",
+                        content: "!(match &self (State (At player $where)) $where)"
+                    },
+                    {
+                        label: "Discover the whole map, including places you have not visited",
+                        language: "metta",
+                        content: "!(match &self (Route $from $direction $to) ($from $direction $to))"
+                    },
+                    {
+                        label: "Prove the compass puzzle is just deleted facts (run before and after pickup)",
+                        language: "metta",
+                        content: "!(match &self (RouteBlock glade $to $reason) $to)"
+                    },
+                    {
+                        label: "Trace containment (compare before and after picking the compass up)",
+                        language: "metta",
+                        content: "!(location-path (compass))"
+                    },
+                    {
+                        label: "Read your own history — the memory that move-to consults",
+                        language: "metta",
+                        content: "!(match &self (Log $tick $event) ($tick $event))"
+                    },
+                    {
+                        label: "Check a puzzle without solving it",
+                        language: "metta",
+                        content: [
+                            "!(statues-solved)",
+                            "!(all-statues-filled)"
+                        ].join("\n")
+                    },
+                    {
+                        label: "Look at pending danger as a data point (True only in the lit cave)",
+                        language: "metta",
+                        content: "!(exists (State (BearThreatPending player)))"
+                    }
+                ]
+            },
+            {
+                title: "Glossary",
+                items: [
+                    "`Atom` — the single data structure of MeTTa: a symbol, or a parenthesized list of atoms.",
+                    "`Atomspace` — the knowledge graph atoms live in. This game's is `&self`.",
+                    "`match` — search the atomspace for a shape and evaluate a template per hit.",
+                    "`=` — defines a rewrite rule. All matching rules apply.",
+                    "`collapse` — gathers all results of a multi-result expression into one list.",
+                    "`State` — wrapper marking an atom as present-tense, mutable memory.",
+                    "`Log` — wrapper recording that an event happened at a given tick.",
+                    "`Stale` — wrapper marking that the clock owes an increment.",
+                    "`Response` — atom carrying player-facing text with a display priority.",
+                    "Trigger — a rule answering `(trigger <event>)`. Many may match one event.",
+                    "Tick — the world clock, advanced by `synchronize-tick` after timed actions."
                 ]
             }
         ]

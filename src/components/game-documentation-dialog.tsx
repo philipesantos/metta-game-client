@@ -114,7 +114,7 @@ export function GameDocumentationDialog({open, onClose}: GameDocumentationDialog
                                     <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/65">Game Documentation</p>
                                     <h2 className="mt-3 text-2xl text-emerald-50 sm:text-3xl">Emerald Grove Omen Reference</h2>
                                     <p className="mt-3 text-sm leading-7 text-emerald-100/70">
-                                        Player instructions, implementation notes, reasoning tutorials, and a final integration review based on the current MeTTa Game client and server.
+                                        Player instructions, implementation notes, and hands-on reasoning tutorials based on the current MeTTa Game client and server.
                                     </p>
                                 </div>
 
