@@ -99,6 +99,71 @@ export const gameDocumentationSections: GameDocumentationSection[] = [
         summary: "How the client, runtime, reasoning model, and MeTTa-backed world state fit together.",
         blocks: [
             {
+                title: "Code Structure",
+                body: [
+                    "The backend is split between two parallel hierarchies, and understanding that split is the key to reading the codebase. `core/definitions/` holds objects that emit complete MeTTa statements; `core/patterns/` holds objects that emit MeTTa expressions used for matching inside those statements. Both expose a single `to_metta()` method.",
+                    "The payoff is that atom shapes are defined once. `AtFactPattern` is the only place that knows an `At` fact is written `(At $what $where)`, so every rule that matches on it follows automatically from that one definition."
+                ],
+                codeSamples: [
+                    {
+                        label: "Backend — metta-game-server",
+                        language: "text",
+                        content: [
+                            "main.py                     Entry point; selects CLI or websocket transport",
+                            "core/",
+                            "  runtime.py                GameSession: lifecycle, command processing, safety",
+                            "  world.py                  World: an ordered list of definitions -> MeTTa text",
+                            "  world_builder.py          build_world(): the concrete Emerald Grove Omen scenario",
+                            "  websocket_input.py        JSON protocol, serialization, healthcheck, server loop",
+                            "  metta_doc_catalog.py      Extracts the clickable documentation catalog",
+                            "  definitions/              Objects that EMIT MeTTa source",
+                            "    facts/                    At, Character, Container, Item, Location, Route, ...",
+                            "    functions/                inventory, move-to, move-towards, pickup, drop,",
+                            "                              look-in, examine, use, trigger, synchronize-tick, ...",
+                            "    side_effects/             on_move_update_at, on_pickup_update_at, on_game_won, ...",
+                            "    wrappers/                 State, Log, Stale",
+                            "  patterns/                 Objects that EMIT MeTTa expressions (for matching)",
+                            "    facts/ functions/ events/ wrappers/",
+                            "  nlp/",
+                            "    nl_spec.py                NLSpec / SlotSpec dataclasses",
+                            "    command_catalog.py        Builds utterance->MeTTa entries from live world state",
+                            "    embedding_index.py        Sentence-transformer matcher with rejection rules",
+                            "modules/                    Self-contained procedural units",
+                            "  compass/ cabin/ statues/ cave/ escape/",
+                            "utils/",
+                            "  response.py               Parses MeTTa output atoms into player-facing text",
+                            "tests/                      Automated suites mirroring core/ and modules/"
+                        ].join("\n")
+                    },
+                    {
+                        label: "Frontend — metta-game-client",
+                        language: "text",
+                        content: [
+                            "src/",
+                            "  game/                     Pure logic, no React — fully unit tested",
+                            "    game-protocol.ts          Wire types + validating parser for every server event",
+                            "    game-session-state.ts     Reducer: server events -> messages, console entries",
+                            "    game-connection-state.ts  Websocket readyState -> connection status",
+                            "    metta-docs.ts             MeTTa s-expression parser, doc store, click targets",
+                            "    metta-doc-viewer-state.ts Inspector navigation history",
+                            "  components/",
+                            "    metta-code.tsx            Syntax highlighting for MeTTa",
+                            "    metta-doc-inspector.tsx   The clickable definition browser",
+                            "    game-documentation-dialog.tsx  This documentation dialog",
+                            "  content/",
+                            "    game-documentation.ts     The content you are reading right now",
+                            "  pages/home-page.tsx       Panels, tabs, input handling, dialog wiring"
+                        ].join("\n")
+                    }
+                ],
+                items: [
+                    "A `Definition` emits a complete statement and is registered on the world. A `Pattern` emits an expression and is composed inside definitions.",
+                    "Facts describe what exists, functions are the callable verbs, side effects are trigger bodies, and wrappers mark an atom's role.",
+                    "Modules under `modules/` extend behaviour by registering additional triggers on existing events, so `core/` contains no reference to bears, lanterns, or caves.",
+                    "On the client, all protocol and parsing logic lives in `src/game/` with no React dependency, which is why it can be unit tested directly."
+                ]
+            },
+            {
                 title: "Runtime Architecture",
                 items: [
                     "The server `GameSession` builds a Python `World`, renders it to raw MeTTa, loads it into Hyperon, and immediately runs the startup trigger.",
